@@ -68,6 +68,28 @@ union CAN_Frame
     byte error_code;
   }Servo_Upload;
 
+  struct{
+    uint32_t canID;
+    byte drive_id;
+    byte position[2];
+    byte speed_high;
+    byte speed_low_current_high;
+    byte current_low;
+    byte motor_temperature;
+    byte error_code;
+  }Mit_Upload;
+
+  struct{
+    uint32_t canID;
+    byte position[2];
+    byte speed_high;
+    byte speed_low_kp_high;
+    byte kp_low;
+    byte kd_high;
+    byte kd_low_current_high;
+    byte current_low;
+  }Mit_Download;
+
 };
 
 struct answer_format_int{
@@ -104,7 +126,7 @@ namespace COB_ID
 
   namespace MIT
   {
-    int cobe_id_mit = 0;
+    int COB_ID_MIT = 0;
   }; // namespace MIT
 
 }; // namespace COB-ID
@@ -114,14 +136,22 @@ enum Drive_Mode{
   MIT_MODE
 };
 
+enum Motor_Type{
+  AK70_10,
+  AK80_64
+};
+
 struct Motor_Drive_Info{
   struct Motor_Info{
+    Motor_Type motor_type;
     double reduction_ratio;
     double torque_constant;
     double rated_torque;
     double peak_torque;
     double rated_current;
     double peak_current;    
+    double peak_speed;
+    double peak_position;
   }motor_info;
 
   struct Drive_Info{
@@ -129,23 +159,30 @@ struct Motor_Drive_Info{
   }drive_info;
 };
 
+
+
+
 namespace Motor_spec{
   struct AK80_64{
-    double reduction_ratio = 64;
-    double torque_constant = 0.136;
-    double rated_torque = 48;
-    double peak_torque = 120;
-    double rated_current = 7;
-    double peak_current = 19;
+    double reduction_ratio = 64;    
+    double torque_constant = 0.136; // Nm/A
+    double rated_torque = 48;       // Nm
+    double peak_torque = 144;       // Nm
+    double rated_current = 7;       // A
+    double peak_current = 19;       // A
+    double peak_speed = 8;          // rad/s
+    double peak_position = 12.5;    // rad
   }ak80_64;
 
   struct AK70_10{
     double reduction_ratio = 10;
-    double torque_constant = 0.123;
-    double rated_torque = 8.3;
-    double peak_torque = 24.8;
-    double rated_current = 7.2;
-    double peak_current = 23.2;
+    double torque_constant = 0.123; // Nm/A
+    double rated_torque = 8.3;      // Nm
+    double peak_torque = 25;      // Nm
+    double rated_current = 7.2;     // A
+    double peak_current = 23.2;     // A
+    double peak_speed = 50;          // rad/s
+    double peak_position = 12.5;    // rad
   }ak70_10;  
 };
 
@@ -155,16 +192,12 @@ class can_base
 private:
 
   // CAN information
-  int can_port; //
-  int bitrate;  //
-  bool loopback;  //
 
   // drive information
   int nDrives;  //
   int *DriveIDs;  //
-  Motor_Info *MotorInformations;
+  Motor_Drive_Info *MotorDriveInformations;
   bool *driveStat;
-  Drive_Mode *drive_modes;
 
   // socket
   int s; /* socket */
@@ -179,10 +212,10 @@ private:
 
 
 public:
-  can_base(int);  //
+  can_base(int _nDrives, int *_drive_ID, Motor_Type *_motor_type, Drive_Mode *_drive_modes);  //
 
-  /* Basic Information Setting */
-  void Can_information(int _nDrives, int *_drive_ID, Motor_Drive_Info *_MotorDriveInforamtions);  //
+  /* Show the informations about motors and drives */
+  void Show_information();  //
 
   /* Low level functions */
   void Open_can();
@@ -190,22 +223,27 @@ public:
   void Read_frame(CAN_Frame &, int &);
   void Send_frame(CAN_Frame, int);
 
+  // Motor on/off
+  void MotorOn();
+  void MotorOff();
+
   // Recieving state CAN message function
   int Recieve_state(answer_format *answer_values);
-  int Recieve_state_SERVO(answer_format *answer_values);
-  int Recieve_state_MIT(answer_format *answer_values);
+  int Recieve_state_SERVO(answer_format &answer_values, int _drive_ID, Motor_Drive_Info _MotorDriveInformations);
+  int Recieve_state_MIT(answer_format &answer_values, int _drive_ID, Motor_Drive_Info _MotorDriveInformations);
 
   // Sending control CAN message function
   int TargetPosition(int *target_position);
-  int TargetPosition_SERVO(int *target_position);
-  int TargetPosition_MIT(int *target_position);
+  // int TargetPosition_SERVO(int *target_position);
+  // int TargetPosition_MIT(int *target_position);
 
   int TargetTorque(double *target_torque);
-  int TargetTorque_SERVO(double *target_torque);
-  int TargetTorque_MIT(double *target_torque);
+  int TargetTorqueFrame(CAN_Frame &current_frame, double target_torque, int _drive_ID, Motor_Drive_Info _MotorDriveInformations);
 
-  void Convert_to_integer_data(double *raw_data, int *int_data, int flag_type);
-  void Convert_to_double_data(double *raw_data, int *int_data, int flag_type);
+  void Convert_to_byte_data_SERVO(double raw_data, byte *byte_data, int flag_type, Motor_Drive_Info _MotorDriveInformations);
+  void Convert_to_byte_torque_MIT(byte *frame, double torque, Motor_Drive_Info _MotorDriveInformations);
+  void Convert_to_byte_position_MIT(byte *frame, double kp, double kd, double ref_pos, double ref_speed, Motor_Drive_Info _MotorDriveInformations);
+  void Double_to_bytes_speed_MIT(byte *frame, double kd, double ref_speed, Motor_Drive_Info _MotorDriveInformations);
 
   class utilities{
   public:
