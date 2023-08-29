@@ -9,42 +9,11 @@ using namespace std;
 #define MOTOR_ID 1
 
 
-double *reference_container;
-int number_drivers = 1;
-int *current_driver_ID;
-Motor_Info *motor_info;
-// AK70_10 ak70_10;
-// AK80_64 ak80_64;
-
-int can_baud = 1000;
-
-void configuration_handler(can_base *CanDriver)
+void MD_parameter_setting(int *drive_ids_arr, Motor_Type *motor_types_arr, Drive_Mode *drive_modes_arr, int _drive_id, Motor_Type _motor_type, Drive_Mode _drive_mode, int arr_index)
 {
-
-  reference_container = new double[number_drivers];
-  current_driver_ID = new int[number_drivers];
-
-  motor_info = new Motor_Info[number_drivers];
-  // motor_info[0].reduction_ratio = ak70_10.reduction_ratio;
-  // motor_info[0].torque_constant = ak70_10.torque_constant;
-  // motor_info[0].rated_torque = ak70_10.rated_torque;
-  // motor_info[0].peak_torque = ak70_10.peak_torque;
-
-
-  for(int i = 0; i < number_drivers; i++){
-    current_driver_ID[i] = 1 + i;
-    motor_info[i].reduction_ratio = Motor_spec::ak70_10.reduction_ratio;
-    motor_info[i].torque_constant = Motor_spec::ak70_10.torque_constant;
-    motor_info[i].rated_torque = Motor_spec::ak70_10.rated_torque;
-    motor_info[i].peak_torque = Motor_spec::ak70_10.peak_torque;
-    motor_info[i].rated_current = Motor_spec::ak70_10.rated_current;
-    motor_info[i].peak_current = Motor_spec::ak70_10.peak_current;
-
-  }
-
-  std::cout<<"Configuring!!"<<std::endl;
-  CanDriver->Can_information(number_drivers, current_driver_ID,motor_info);
-
+  drive_ids_arr[arr_index] = _drive_id;
+  motor_types_arr[arr_index] = _motor_type;
+  drive_modes_arr[arr_index] = _drive_mode;
 }
 
 
@@ -60,11 +29,26 @@ int main(int argc, char **argv)
 
   int clock = 0;
 
+  int number_drivers = 1;
+  int *current_driver_IDs;
+  Motor_Type *motor_types;
+  Drive_Mode *drive_modes;
 
-  can_base CanDriver(can_baud); // 1000 Kbps
+  current_driver_IDs = new int[number_drivers];
+  motor_types = new Motor_Type[number_drivers];
+  drive_modes = new Drive_Mode[number_drivers];
 
-  CanDriver.Open_can();
-  configuration_handler(&CanDriver);
+  // MD_parameter_setting(current_driver_IDs, motor_types, drive_modes, 1, Motor_Type::AK80_64, Drive_Mode::SERVO_MODE, 0);
+  MD_parameter_setting(current_driver_IDs, motor_types, drive_modes, 1, Motor_Type::AK80_64, Drive_Mode::MIT_MODE, 0);
+
+  // MD_parameter_setting(current_driver_IDs, motor_types, drive_modes, 1, Motor_Type::AK80_64, Drive_Mode::SERVO_MODE, 1);
+
+  // cout << current_driver_IDs[1] << endl;
+  // cout << motor_types[1] << endl;
+  // cout << drive_modes[1] << endl;
+
+  can_base CanDriver(number_drivers, current_driver_IDs, motor_types, drive_modes);
+
 
   double *reference;
   double *target_torque, *target_speed;
@@ -72,7 +56,7 @@ int main(int argc, char **argv)
   target_torque = new double[number_drivers];
   target_speed = new double[number_drivers];
   for (int i = 0; i < number_drivers; i++){
-    reference[i] = 0;
+    reference[i] = 1.57;
     target_torque[i] = 0.615;
   }
 
@@ -84,28 +68,30 @@ int main(int argc, char **argv)
 
   ROS_INFO("START");
 
-  ros::Time t_start,t_end;
-  ros::Duration t_diff;
+  double t_start,t_end,t_diff;
 
   while(ros::ok()){
     // sleep(1);
 
 
     // CanDriver.TargetPosition(reference);
-    t_start = ros::Time::now();
+    t_start = ros::Time::now().toSec();
     CanDriver.Recieve_state(answer);
-    t_end = ros::Time::now();
+    t_end = ros::Time::now().toSec();
+    t_diff = t_start - t_end;
     // target_torque[0] = 0.05*(reference[0] - answer[0].position) + 0.02*(target_speed[0] - answer[0].speed);
-    target_torque[0] = 0.01*(reference[0] - answer[0].position);
-    // CanDriver.TargetTorque(target_torque);
-    ROS_INFO("real torque : %f || target torque : %f || position : %f",answer[0].torque,target_torque[0],answer[0].position);
-    // ROS_INFO("position : %f || speed : %f || torque : %f || temperature : %d",answer[0].position,answer[0].speed,answer[0].torque,answer[0].motor_temperature);
+    target_torque[0] = 100*(reference[0] - answer[0].position);
+    CanDriver.TargetTorque(target_torque);
+    // ROS_INFO("real torque : %f || target torque : %f || position : %f",answer[0].torque,target_torque[0],answer[0].position);
+    ROS_INFO("time : %f || position : %f || speed : %f || torque : %f || temperature : %d",t_diff,answer[0].position,answer[0].speed,answer[0].torque,answer[0].motor_temperature);
     // cout << "Position : " << answer[0].position << " speed : " << answer[0].speed << " torque : " << answer[0].torque << " temperature : " << answer[0].motor_temperature << endl;
     ros::spinOnce();
     loop_rate.sleep();
 
   }
 
+
+  CanDriver.MotorOff();
   CanDriver.Close_can();
   return 0;
 }
