@@ -239,9 +239,12 @@ public:
 
   int TargetTorque(double *target_torque);
   int TargetTorqueFrame(CAN_Frame &current_frame, double target_torque, int _drive_ID, Motor_Drive_Info _MotorDriveInformations);
+  int TargetTorqueWithPD(double *target_torque, double *kp, double *ref_pos, double *kd, double *ref_speed);
+  int TargetTorqueWithPDFrame(CAN_Frame &current_frame, double target_torque, double kp, double ref_pos, double kd, double ref_speed, int _drive_ID, Motor_Drive_Info _MotorDriveInformations);
 
   void Convert_to_byte_data_SERVO(double raw_data, byte *byte_data, int flag_type, Motor_Drive_Info _MotorDriveInformations);
   void Convert_to_byte_torque_MIT(byte *frame, double torque, Motor_Drive_Info _MotorDriveInformations);
+  void Convert_to_byte_torque_PD_MIT(byte *frame, double torque, double kp, double ref_pos, double kd, double ref_speed, Motor_Drive_Info _MotorDriveInformations);
   void Convert_to_byte_position_MIT(byte *frame, double kp, double kd, double ref_pos, double ref_speed, Motor_Drive_Info _MotorDriveInformations);
   void Double_to_bytes_speed_MIT(byte *frame, double kd, double ref_speed, Motor_Drive_Info _MotorDriveInformations);
 
