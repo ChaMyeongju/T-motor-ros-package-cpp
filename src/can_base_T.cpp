@@ -138,7 +138,6 @@ can_base::can_base(int _nDrives, int *_drive_ID, Motor_Type *_motor_type, Drive_
 
   for(int i = 0; i < nDrives; i++){
     this->DriveIDs[i] = _drive_ID[i];
-    cout << _drive_ID[i] << " || " << this->DriveIDs[i] << endl;
     this->MotorDriveInformations[i].motor_info.motor_type = _motor_type[i];
     this->MotorDriveInformations[i].drive_info.drive_mode = _drive_modes[i];
     if(_motor_type[i] == AK70_10)
@@ -529,8 +528,8 @@ int can_base::TargetTorque(double *target_torque)
     Send_frame(current_frames[i],4*(this->MotorDriveInformations[i].drive_info.drive_mode + 1));
   }
 
-
 }
+
 
 int can_base::TargetTorqueFrame(CAN_Frame &current_frame, double target_torque, int _drive_ID, Motor_Drive_Info _MotorDriveInformations)
 {
@@ -585,6 +584,73 @@ int can_base::TargetTorqueFrame(CAN_Frame &current_frame, double target_torque, 
 
 }
 
+int can_base::TargetTorqueWithPD(double *target_torque, double *kp, double *ref_pos, double *kd, double *ref_speed)
+{
+  CAN_Frame current_frames[this->nDrives];
+
+  for(int i = 0; i < this->nDrives; i++){
+    TargetTorqueWithPDFrame(current_frames[i],target_torque[i],kp[i],ref_pos[i],kd[i],ref_speed[i],this->DriveIDs[i],this->MotorDriveInformations[i]);
+  }
+
+  for(int i = 0; i < this->nDrives; i++){
+    Send_frame(current_frames[i],4*(this->MotorDriveInformations[i].drive_info.drive_mode + 1));
+  }  
+}
+
+int can_base::TargetTorqueWithPDFrame(CAN_Frame &current_frame, double target_torque, double kp, double ref_pos, double kd, double ref_speed, int _drive_ID, Motor_Drive_Info _MotorDriveInformations)
+{
+  double temp_target_torque;
+
+  // Take target torque into the bound of the torque of the motor.
+  if(target_torque > _MotorDriveInformations.motor_info.peak_torque)
+  {
+    temp_target_torque = _MotorDriveInformations.motor_info.peak_torque;
+  }
+  else if(target_torque < -_MotorDriveInformations.motor_info.peak_torque)
+  {
+    temp_target_torque = -_MotorDriveInformations.motor_info.peak_torque;
+  }
+  else
+  {
+    temp_target_torque = target_torque;
+  }
+
+  // SERVO mode
+  if(_MotorDriveInformations.drive_info.drive_mode == Drive_Mode::SERVO_MODE)
+  {
+    byte data[4] = {0};
+
+    // convert torque to current and convert double current to integer current. 2 which is located after temp_target_current is flag_type and means torque flag
+    Convert_to_byte_data_SERVO(temp_target_torque, data, 2, _MotorDriveInformations);
+
+    current_frame.Current_Loop.canID = COB_ID::SERVO::CURRENT_LOOP + _drive_ID;
+
+    for(int j = 0; j < 4; j++)
+    {
+      current_frame.Current_Loop.current[j] = data[3-j];   
+    }
+  }
+
+  // MIT mode
+  else if(_MotorDriveInformations.drive_info.drive_mode == Drive_Mode::MIT_MODE)
+  {
+    byte data[8] = {0};
+    Convert_to_byte_torque_PD_MIT(data, temp_target_torque, kp, ref_pos, kd, ref_speed, _MotorDriveInformations);
+
+    current_frame.Mit_Download.canID = COB_ID::MIT::COB_ID_MIT + _drive_ID;
+    current_frame.Mit_Download.position[0] = data[0];
+    current_frame.Mit_Download.position[1] = data[1];
+    current_frame.Mit_Download.speed_high = data[2];
+    current_frame.Mit_Download.speed_low_kp_high = data[3];
+    current_frame.Mit_Download.kp_low = data[4];
+    current_frame.Mit_Download.kd_high = data[5];
+    current_frame.Mit_Download.kd_low_current_high = data[6];
+    current_frame.Mit_Download.current_low = data[7];
+  }
+
+}
+
+
 
 void can_base::Convert_to_byte_data_SERVO(double raw_data, byte *byte_data, int flag_type, Motor_Drive_Info _MotorDriveInformations)
 {
@@ -615,6 +681,40 @@ void can_base::Convert_to_byte_torque_MIT(byte *frame, double torque, Motor_Driv
   frame[6] = (torque_int_val - (torque_int_val % 256)) >> 8;
   frame[7] = (torque_int_val % 256); 
 
+}
+
+void can_base::Convert_to_byte_torque_PD_MIT(byte *frame, double torque, double kp, double ref_pos, double kd, double ref_speed, Motor_Drive_Info _MotorDriveInformations)
+{
+  double peak_torque = _MotorDriveInformations.motor_info.peak_torque;
+  double peak_pos = _MotorDriveInformations.motor_info.peak_position;
+  double peak_speed = _MotorDriveInformations.motor_info.peak_speed;
+
+  double range = 2*peak_torque;
+  double pos_range = 2*peak_pos;
+  double speed_range = 2*peak_speed;
+  double kp_range = 500;
+  double kd_range = 5;
+
+  double torque_int_range = (double)(pow(2,12) - 1);
+  double pos_int_range = (double)(pow(2,16) - 1);
+  double speed_int_range = (double)(pow(16,3) - 1);
+  double kp_kd_int_range = (double)(pow(16,3) - 1);
+
+  int torque_int_val = (int)((torque + peak_torque)*torque_int_range/range);
+  int pos_int_val = (int)((ref_pos + peak_pos)*pos_int_range/pos_range);
+  int speed_int_val = (int)((ref_speed - peak_speed)*speed_int_range/speed_range);
+  int kp_int_val = (int)(kp*kp_kd_int_range/kp_range);
+  int kd_int_val = (int)(kd*kp_kd_int_range/kd_range);
+
+
+  frame[0] = (pos_int_val - (pos_int_val % 256)) >> 8;
+  frame[1] = pos_int_val % 256;
+  frame[2] = (speed_int_val - (speed_int_val % 16)) >> 4;
+  frame[3] = (speed_int_val % 16) << 4 + (kp_int_val - (kp_int_val % 256)) >> 8;  
+  frame[4] = kp_int_val % 256;
+  frame[5] = (kd_int_val - (kd_int_val % 16)) >> 4;
+  frame[6] = (kd_int_val % 16) << 4 + (torque_int_val - (torque_int_val % 256)) >> 8;
+  frame[7] = (torque_int_val % 256);
 }
 
 void can_base::Convert_to_byte_position_MIT(byte *frame, double kp, double kd, double ref_pos, double ref_speed, Motor_Drive_Info _MotorDriveInformations)
