@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(can_driver_t)
 set(CMAKE_CXX_FLAGS "-O2")        ## Optimize
 
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
