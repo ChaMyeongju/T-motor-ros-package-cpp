@@ -1,0 +1,4 @@
+<launch>
+	<rosparam file="$(find can_driver_t)/config/t_motor_parameter.yaml" />
+	<node pkg="can_driver_t" name="can_test" type="can_test" output="screen" />
+</launch>
