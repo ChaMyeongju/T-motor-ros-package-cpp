@@ -4,24 +4,33 @@
 
 # Motor setting parameters
 
+# Drive id
+/t_motor/motor/drive_ids: [1]
+
 # Motor types
 # 1. AK70_10 : 0
 # 2. AK80_64 : 1
+/t_motor/motor/motor_types: [0]
+# /t_motor/motor/motor_types: [1]
 
 # Drive modes
 # 1. SERVO_MODE : 0
 # 2. MIT_MODE : 1
-
-/t_motor/motor/drive_ids: [1]
-/t_motor/motor/motor_types: [1]
 /t_motor/motor/drive_modes: [1]
 
 # Motor control parameters
 
 /t_motor/control/reference_pos: [0]
+# /t_motor/control/reference_pos: [-0.5]
+# /t_motor/control/reference_pos: [1.57]
 /t_motor/control/reference_speed: [0]
 
-/t_motor/control/kp: [100]
-/t_motor/control/kd: [0]
+/t_motor/control/kp: [15]
+/t_motor/control/kd: [0.6]
 
-/t_motor/control/torquePD_flag: 2
+/t_motor/control/torquePD_flag: 1
+
+# test result
+# AK80-64 
+# 1. kp = 500, kd = 20
+# 2. kp = 1000, kd = 25.5
