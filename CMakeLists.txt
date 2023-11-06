@@ -25,18 +25,16 @@ find_package(catkin REQUIRED COMPONENTS
 ## Declare ROS messages, services and actions ##
 ################################################
 ## Generate messages in the 'msg' folder
-#add_message_files(
-#  FILES
-#  control_configuration.msg
-#  control_feedback.msg
-#  feedback_pos_vel_torq.msg
-#)
+add_message_files(
+  FILES
+  control_param.msg
+)
 
 ## Generate services in the 'srv' folder
-#add_service_files(
-#  FILES
-#  ControlService.srv
-#)
+add_service_files(
+  FILES
+  control_param_srv.srv
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
@@ -71,4 +69,12 @@ add_library(${PROJECT_NAME} src/can_base_T.cpp)
 
 add_executable(can_test src/can_test.cpp)
 target_link_libraries(can_test ${catkin_LIBRARIES} ${PROJECT_NAME})
-add_dependencies(can_test ambpros_can_test_gencpp)
+add_dependencies(can_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+add_executable(sub_test src/sub_test.cpp)
+target_link_libraries(sub_test ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_dependencies(sub_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+add_executable(keyboard_pub src/keyboard_pub.cpp)
+target_link_libraries(keyboard_pub ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_dependencies(keyboard_pub ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
